@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: sella
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: QR_PEPPER
+        generateValue: true
+      # Después del primer deploy, poné acá tu URL pública (sin barra final).
+      # Ej: https://sella-demo.onrender.com
+      - key: APP_URL
+        sync: false
+      - key: AUTO_SEED
+        value: "true"
+
+    # Persistencia real: los discos de Render requieren plan pago (Starter).
+    # Si activás uno, descomentá esto y descomentá DB_PATH.
+    # disk:
+    #   name: sella-data
+    #   mountPath: /data
+    #   sizeGB: 1
+    #
+    # - key: DB_PATH
+    #   value: /data/sella.db

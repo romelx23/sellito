@@ -1,0 +1,223 @@
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const { db, id, now } = require('./db');
+
+const PASSWORD = 'demo1234';
+
+function hasData() {
+  return db.prepare('SELECT COUNT(*) AS n FROM businesses').get().n > 0;
+}
+
+function insertBusiness({ name, slug, color, email, ownerName }) {
+  const businessId = id();
+  const userId = id();
+  const ts = now();
+
+  db.prepare('INSERT INTO businesses (id, name, slug, brand_color, created_at) VALUES (?, ?, ?, ?, ?)').run(
+    businessId,
+    name,
+    slug,
+    color,
+    ts,
+  );
+
+  db.prepare(
+    'INSERT INTO users (id, business_id, email, password_hash, name, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  ).run(userId, businessId, email, bcrypt.hashSync(PASSWORD, 10), ownerName, 'owner', ts);
+
+  return { businessId, userId };
+}
+
+function insertProgram({ businessId, name, description, reward, stampsRequired, style, cooldown = 0 }) {
+  const programId = id();
+  db.prepare(
+    `INSERT INTO programs
+      (id, business_id, name, description, reward_text, stamps_required, cooldown_minutes, max_per_day, style_json, active, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 1, ?)`,
+  ).run(
+    programId,
+    businessId,
+    name,
+    description,
+    reward,
+    stampsRequired,
+    cooldown,
+    JSON.stringify(style),
+    now(),
+  );
+  return programId;
+}
+
+function insertCard({ programId, businessId, name, phone, code, stamps, status, staffId, redeemed }) {
+  const ts = now();
+  const customerId = id();
+
+  db.prepare(
+    'INSERT INTO customers (id, business_id, name, phone, email, consent_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  ).run(customerId, businessId, name, phone, null, ts, ts);
+
+  const cardId = id();
+  db.prepare(
+    `INSERT INTO cards (id, program_id, customer_id, code, stamps, status, secret, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(cardId, programId, customerId, code, stamps, status, crypto.randomBytes(24).toString('base64url'), ts, ts);
+
+  for (let i = 0; i < stamps; i += 1) {
+    db.prepare(
+      'INSERT INTO stamps (id, card_id, staff_id, source, idempotency_key, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    ).run(
+      id(),
+      cardId,
+      staffId,
+      i === 0 ? 'manual' : 'scan',
+      `seed-${cardId}-${i}`,
+      new Date(Date.now() - i * 36 * 60 * 1000).toISOString(),
+    );
+  }
+
+  if (redeemed) {
+    db.prepare(
+      'INSERT INTO reward_redemptions (id, card_id, staff_id, reward_text, idempotency_key, redeemed_at) VALUES (?, ?, ?, ?, ?, ?)',
+    ).run(
+      id(),
+      cardId,
+      staffId,
+      redeemed,
+      `seed-redeem-${cardId}`,
+      new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    );
+  }
+
+  return cardId;
+}
+
+function seed() {
+  if (hasData()) return { skipped: true, businesses: 0 };
+
+  let businesses = 0;
+
+  const run = db.transaction(() => {
+    const cafe = insertBusiness({
+      name: 'Café Aurora',
+      slug: 'cafe-aurora',
+      color: '#A24B2A',
+      email: 'demo@sella.app',
+      ownerName: 'Lucía',
+    });
+
+    const cafeProgram = insertProgram({
+      businessId: cafe.businessId,
+      name: 'Club Aurora',
+      description: 'Cada visita suma. Cada 8 sellos, un premio.',
+      reward: 'Un flat white de especialidad gratis',
+      stampsRequired: 8,
+      style: {
+        template: 'ticket',
+        background: '#A24B2A',
+        foreground: '#FFF7ED',
+        accent: '#F2C14E',
+        stampIcon: 'coffee',
+        pattern: 'dots',
+        cornerRadius: 26,
+        showLogo: true,
+      },
+    });
+
+    insertCard({
+      programId: cafeProgram,
+      businessId: cafe.businessId,
+      name: 'Ana Pérez',
+      phone: '+54 11 5555 0101',
+      code: 'CAFE-DEMO',
+      stamps: 3,
+      status: 'active',
+      staffId: cafe.userId,
+    });
+
+    insertCard({
+      programId: cafeProgram,
+      businessId: cafe.businessId,
+      name: 'Bruno Díaz',
+      phone: '+54 11 5555 0102',
+      code: 'CAFE-8F3K',
+      stamps: 8,
+      status: 'reward_ready',
+      staffId: cafe.userId,
+    });
+
+    insertCard({
+      programId: cafeProgram,
+      businessId: cafe.businessId,
+      name: 'Carla Ruiz',
+      phone: '+54 11 5555 0103',
+      code: 'CAFE-L2QX',
+      stamps: 0,
+      status: 'active',
+      staffId: cafe.userId,
+    });
+
+    insertCard({
+      programId: cafeProgram,
+      businessId: cafe.businessId,
+      name: 'Elena Gómez',
+      phone: '+54 11 5555 0104',
+      code: 'CAFE-R3ED',
+      stamps: 2,
+      status: 'active',
+      staffId: cafe.userId,
+      redeemed: 'Un flat white de especialidad gratis',
+    });
+
+    const barber = insertBusiness({
+      name: 'Barbería Norte',
+      slug: 'barberia-norte',
+      color: '#1E3A5F',
+      email: 'barber@sella.app',
+      ownerName: 'Martín',
+    });
+
+    const barberProgram = insertProgram({
+      businessId: barber.businessId,
+      name: 'Corte Club',
+      description: 'Diez cortes, uno gratis.',
+      reward: 'Un corte de pelo gratis',
+      stampsRequired: 10,
+      style: {
+        template: 'bold',
+        background: '#1E3A5F',
+        foreground: '#F8FAFC',
+        accent: '#E8B04B',
+        stampIcon: 'star',
+        pattern: 'grid',
+        cornerRadius: 18,
+        showLogo: true,
+      },
+    });
+
+    insertCard({
+      programId: barberProgram,
+      businessId: barber.businessId,
+      name: 'Diego Sosa',
+      phone: '+54 11 5555 0201',
+      code: 'NORT-DEMO',
+      stamps: 4,
+      status: 'active',
+      staffId: barber.userId,
+    });
+
+    businesses = 2;
+  });
+
+  run();
+
+  return { skipped: false, businesses };
+}
+
+if (require.main === module) {
+  const result = seed();
+  console.log(result.skipped ? 'Ya había datos, no se tocó nada.' : 'Datos demo creados.');
+  console.log('Negocio: demo@sella.app / demo1234');
+  console.log('Cliente: CAFE-DEMO');
+}
+
+module.exports = { seed, hasData, PASSWORD };

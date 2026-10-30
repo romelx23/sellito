@@ -1,0 +1,11 @@
+.git
+.gitignore
+node_modules
+**/node_modules
+app/build
+app/.dart_tool
+backend/data
+backend/public/app
+docs
+*.md
+LICENSE

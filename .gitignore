@@ -1,0 +1,35 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Datos locales (SQLite, uploads)
+backend/data/
+backend/public/app/
+
+# Flutter / Dart
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/build/
+app/.packages
+app/pubspec.lock.bak
+app/android/.gradle/
+app/android/local.properties
+app/ios/Pods/
+app/ios/.symlinks/
+app/ios/Flutter/Flutter.framework
+app/ios/Flutter/Flutter.podspec
+
+# Entorno
+.env
+backend/.env
+*.local
+
+# Editores / sistema
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Capturas temporales
+docs/img/tmp/
