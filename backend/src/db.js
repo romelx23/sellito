@@ -1,21 +1,56 @@
-const Database = require('better-sqlite3');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { pathToFileURL } = require('url');
+const { createClient } = require('@libsql/client');
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'sella.db');
 const DATA_DIR = path.dirname(DB_PATH);
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 
-fs.mkdirSync(DATA_DIR, { recursive: true });
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+// Si hay DB_PATH se usa un archivo local (tests, desarrollo sin nube).
+// Si no, y hay credenciales de Turso, la base vive en Turso.
+const useTurso = !process.env.DB_PATH && Boolean(process.env.TURSO_DATABASE_URL);
 
-const db = new Database(DB_PATH);
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+// En Vercel el disco es de solo lectura: solo se crean carpetas para la base local.
+if (!useTurso) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+
+const db = useTurso
+  ? createClient({
+      url: process.env.TURSO_DATABASE_URL,
+      authToken: process.env.TURSO_AUTH_TOKEN,
+    })
+  : createClient({ url: pathToFileURL(DB_PATH).href });
 
 const now = () => new Date().toISOString();
 const id = () => crypto.randomUUID();
+
+// libSQL no acepta undefined como parámetro.
+const clean = (args = []) => args.map((value) => (value === undefined ? null : value));
+
+async function all(sql, args) {
+  const rs = await db.execute({ sql, args: clean(args) });
+  return rs.rows.map((row) => Object.fromEntries(rs.columns.map((name, i) => [name, row[i]])));
+}
+
+async function get(sql, args) {
+  return (await all(sql, args))[0];
+}
+
+function run(sql, args) {
+  return db.execute({ sql, args: clean(args) });
+}
+
+/** Ejecuta varias escrituras en una sola transacción. */
+function batch(statements) {
+  return db.batch(
+    statements.map(([sql, args]) => ({ sql, args: clean(args) })),
+    'write',
+  );
+}
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS businesses (
@@ -102,14 +137,28 @@ CREATE TABLE IF NOT EXISTS qr_uses (
 );
 `;
 
-function migrate() {
-  db.exec(SCHEMA);
-}
+const ready = db
+  .executeMultiple(SCHEMA)
+  .then(() => db.execute('PRAGMA foreign_keys = ON'));
 
 /** Borra tokens QR viejos para que la tabla no crezca sin limite. */
 function cleanupQrUses() {
   const limit = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  db.prepare('DELETE FROM qr_uses WHERE used_at < ?').run(limit);
+  return run('DELETE FROM qr_uses WHERE used_at < ?', [limit]);
 }
 
-module.exports = { db, migrate, now, id, cleanupQrUses, DB_PATH, DATA_DIR, UPLOAD_DIR };
+module.exports = {
+  db,
+  ready,
+  all,
+  get,
+  run,
+  batch,
+  now,
+  id,
+  cleanupQrUses,
+  DB_PATH,
+  DATA_DIR,
+  UPLOAD_DIR,
+  useTurso,
+};

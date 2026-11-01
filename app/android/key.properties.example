@@ -1,0 +1,6 @@
+# Copiar a android/key.properties y completar. Ese archivo está en .gitignore: nunca lo subas.
+# Guía completa: docs/06-publicar-en-play-store.md
+storePassword=CAMBIAR
+keyPassword=CAMBIAR
+keyAlias=upload
+storeFile=C:/Users/romel/keys/sella-upload.jks

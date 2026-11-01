@@ -12,6 +12,7 @@ process.env.QR_PEPPER = 'test-pepper';
 process.env.AUTO_SEED = 'false';
 
 const { app } = require('../src/app');
+const { ready, get } = require('../src/db');
 const qr = require('../src/services/qr');
 
 let server;
@@ -35,6 +36,7 @@ async function api(route, { method = 'GET', body, auth } = {}) {
 }
 
 before(async () => {
+  await ready;
   await new Promise((resolve) => {
     server = app.listen(0, '127.0.0.1', resolve);
   });
@@ -228,17 +230,15 @@ test('otro negocio no puede sellar una tarjeta ajena', async () => {
   assert.equal(status, 403);
 });
 
-test('un QR expirado no es válido', () => {
-  const { db } = require('../src/db');
-  const card = db.prepare('SELECT * FROM cards WHERE code = ?').get(code);
+test('un QR expirado no es válido', async () => {
+  const card = await get('SELECT * FROM cards WHERE code = ?', [code]);
   const expired = qr.sign(card.id, card.secret, -10);
 
   assert.throws(() => qr.parse(expired), /expiró/);
 });
 
-test('una firma alterada no es válida', () => {
-  const { db } = require('../src/db');
-  const card = db.prepare('SELECT * FROM cards WHERE code = ?').get(code);
+test('una firma alterada no es válida', async () => {
+  const card = await get('SELECT * FROM cards WHERE code = ?', [code]);
   const forged = qr.sign(card.id, 'secreto-inventado', 60);
 
   assert.throws(() => qr.verifySignature(forged, card.secret), /firma/);

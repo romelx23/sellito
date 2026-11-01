@@ -1,103 +1,98 @@
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const { db, id, now } = require('./db');
+const { get, batch, id, now } = require('./db');
 
 const PASSWORD = 'demo1234';
 
-function hasData() {
-  return db.prepare('SELECT COUNT(*) AS n FROM businesses').get().n > 0;
+async function hasData() {
+  return (await get('SELECT COUNT(*) AS n FROM businesses', [])).n > 0;
 }
 
-function insertBusiness({ name, slug, color, email, ownerName }) {
+/** Cada helper devuelve sentencias SQL pendientes en `q`; seed() las ejecuta en una sola transacción. */
+function insertBusiness(q, { name, slug, color, email, ownerName }) {
   const businessId = id();
   const userId = id();
   const ts = now();
 
-  db.prepare('INSERT INTO businesses (id, name, slug, brand_color, created_at) VALUES (?, ?, ?, ?, ?)').run(
-    businessId,
-    name,
-    slug,
-    color,
-    ts,
-  );
+  q.push([
+    'INSERT INTO businesses (id, name, slug, brand_color, created_at) VALUES (?, ?, ?, ?, ?)',
+    [businessId, name, slug, color, ts],
+  ]);
 
-  db.prepare(
+  q.push([
     'INSERT INTO users (id, business_id, email, password_hash, name, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-  ).run(userId, businessId, email, bcrypt.hashSync(PASSWORD, 10), ownerName, 'owner', ts);
+    [userId, businessId, email, bcrypt.hashSync(PASSWORD, 10), ownerName, 'owner', ts],
+  ]);
 
   return { businessId, userId };
 }
 
-function insertProgram({ businessId, name, description, reward, stampsRequired, style, cooldown = 0 }) {
+function insertProgram(q, { businessId, name, description, reward, stampsRequired, style, cooldown = 0 }) {
   const programId = id();
-  db.prepare(
+  q.push([
     `INSERT INTO programs
       (id, business_id, name, description, reward_text, stamps_required, cooldown_minutes, max_per_day, style_json, active, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 1, ?)`,
-  ).run(
-    programId,
-    businessId,
-    name,
-    description,
-    reward,
-    stampsRequired,
-    cooldown,
-    JSON.stringify(style),
-    now(),
-  );
+    [programId, businessId, name, description, reward, stampsRequired, cooldown, JSON.stringify(style), now()],
+  ]);
   return programId;
 }
 
-function insertCard({ programId, businessId, name, phone, code, stamps, status, staffId, redeemed }) {
+function insertCard(q, { programId, businessId, name, phone, code, stamps, status, staffId, redeemed }) {
   const ts = now();
   const customerId = id();
 
-  db.prepare(
+  q.push([
     'INSERT INTO customers (id, business_id, name, phone, email, consent_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-  ).run(customerId, businessId, name, phone, null, ts, ts);
+    [customerId, businessId, name, phone, null, ts, ts],
+  ]);
 
   const cardId = id();
-  db.prepare(
+  q.push([
     `INSERT INTO cards (id, program_id, customer_id, code, stamps, status, secret, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(cardId, programId, customerId, code, stamps, status, crypto.randomBytes(24).toString('base64url'), ts, ts);
+    [cardId, programId, customerId, code, stamps, status, crypto.randomBytes(24).toString('base64url'), ts, ts],
+  ]);
 
   for (let i = 0; i < stamps; i += 1) {
-    db.prepare(
+    q.push([
       'INSERT INTO stamps (id, card_id, staff_id, source, idempotency_key, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-    ).run(
-      id(),
-      cardId,
-      staffId,
-      i === 0 ? 'manual' : 'scan',
-      `seed-${cardId}-${i}`,
-      new Date(Date.now() - i * 36 * 60 * 1000).toISOString(),
-    );
+      [
+        id(),
+        cardId,
+        staffId,
+        i === 0 ? 'manual' : 'scan',
+        `seed-${cardId}-${i}`,
+        new Date(Date.now() - i * 36 * 60 * 1000).toISOString(),
+      ],
+    ]);
   }
 
   if (redeemed) {
-    db.prepare(
+    q.push([
       'INSERT INTO reward_redemptions (id, card_id, staff_id, reward_text, idempotency_key, redeemed_at) VALUES (?, ?, ?, ?, ?, ?)',
-    ).run(
-      id(),
-      cardId,
-      staffId,
-      redeemed,
-      `seed-redeem-${cardId}`,
-      new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    );
+      [
+        id(),
+        cardId,
+        staffId,
+        redeemed,
+        `seed-redeem-${cardId}`,
+        new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      ],
+    ]);
   }
 
   return cardId;
 }
 
-function seed() {
-  if (hasData()) return { skipped: true, businesses: 0 };
+async function seed() {
+  if (await hasData()) return { skipped: true, businesses: 0 };
 
   let businesses = 0;
+  const q = [];
 
-  const run = db.transaction(() => {
-    const cafe = insertBusiness({
+  {
+    const cafe = insertBusiness(q, {
       name: 'Café Aurora',
       slug: 'cafe-aurora',
       color: '#A24B2A',
@@ -105,7 +100,7 @@ function seed() {
       ownerName: 'Lucía',
     });
 
-    const cafeProgram = insertProgram({
+    const cafeProgram = insertProgram(q, {
       businessId: cafe.businessId,
       name: 'Club Aurora',
       description: 'Cada visita suma. Cada 8 sellos, un premio.',
@@ -123,7 +118,7 @@ function seed() {
       },
     });
 
-    insertCard({
+    insertCard(q, {
       programId: cafeProgram,
       businessId: cafe.businessId,
       name: 'Ana Pérez',
@@ -134,7 +129,7 @@ function seed() {
       staffId: cafe.userId,
     });
 
-    insertCard({
+    insertCard(q, {
       programId: cafeProgram,
       businessId: cafe.businessId,
       name: 'Bruno Díaz',
@@ -145,7 +140,7 @@ function seed() {
       staffId: cafe.userId,
     });
 
-    insertCard({
+    insertCard(q, {
       programId: cafeProgram,
       businessId: cafe.businessId,
       name: 'Carla Ruiz',
@@ -156,7 +151,7 @@ function seed() {
       staffId: cafe.userId,
     });
 
-    insertCard({
+    insertCard(q, {
       programId: cafeProgram,
       businessId: cafe.businessId,
       name: 'Elena Gómez',
@@ -168,7 +163,7 @@ function seed() {
       redeemed: 'Un flat white de especialidad gratis',
     });
 
-    const barber = insertBusiness({
+    const barber = insertBusiness(q, {
       name: 'Barbería Norte',
       slug: 'barberia-norte',
       color: '#1E3A5F',
@@ -176,7 +171,7 @@ function seed() {
       ownerName: 'Martín',
     });
 
-    const barberProgram = insertProgram({
+    const barberProgram = insertProgram(q, {
       businessId: barber.businessId,
       name: 'Corte Club',
       description: 'Diez cortes, uno gratis.',
@@ -194,7 +189,7 @@ function seed() {
       },
     });
 
-    insertCard({
+    insertCard(q, {
       programId: barberProgram,
       businessId: barber.businessId,
       name: 'Diego Sosa',
@@ -205,19 +200,73 @@ function seed() {
       staffId: barber.userId,
     });
 
-    businesses = 2;
-  });
+    const tomillo = insertBusiness(q, {
+      name: 'Cafetería Tomillo',
+      slug: 'cafeteria-tomillo',
+      color: '#3F2D5C',
+      email: 'cafe@sella.app',
+      ownerName: 'Sofía',
+    });
 
-  run();
+    const tomilloProgram = insertProgram(q, {
+      businessId: tomillo.businessId,
+      name: 'Tomillo Club',
+      description: 'Cada café suma. Cada 10 sellos, una medialuna.',
+      reward: 'Una medialuna gratis',
+      stampsRequired: 10,
+      style: {
+        template: 'retro',
+        background: '#3F2D5C',
+        foreground: '#FFF4EC',
+        accent: '#F0B7A4',
+        stampIcon: 'circle',
+        pattern: 'waves',
+        cornerRadius: 30,
+        showLogo: true,
+      },
+    });
+
+    insertCard(q, {
+      programId: tomilloProgram,
+      businessId: tomillo.businessId,
+      name: 'Julieta Motta',
+      phone: '+54 11 5555 0301',
+      code: 'TOMI-DEMO',
+      stamps: 6,
+      status: 'active',
+      staffId: tomillo.userId,
+    });
+
+    insertCard(q, {
+      programId: tomilloProgram,
+      businessId: tomillo.businessId,
+      name: 'Tomás Vega',
+      phone: '+54 11 5555 0302',
+      code: 'TOMI-7QWN',
+      stamps: 10,
+      status: 'reward_ready',
+      staffId: tomillo.userId,
+    });
+
+    businesses = 3;
+  }
+
+  await batch(q);
 
   return { skipped: false, businesses };
 }
 
 if (require.main === module) {
-  const result = seed();
-  console.log(result.skipped ? 'Ya había datos, no se tocó nada.' : 'Datos demo creados.');
-  console.log('Negocio: demo@sella.app / demo1234');
-  console.log('Cliente: CAFE-DEMO');
+  seed()
+    .then((result) => {
+      console.log(result.skipped ? 'Ya había datos, no se tocó nada.' : 'Datos demo creados.');
+      console.log('Negocio: demo@sella.app / demo1234');
+      console.log('Cliente: CAFE-DEMO');
+    })
+    .catch((error) => {
+      console.error(error);
+      process.exitCode = 1;
+    });
 }
 
 module.exports = { seed, hasData, PASSWORD };

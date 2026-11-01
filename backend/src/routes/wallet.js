@@ -6,7 +6,7 @@ const router = express.Router();
 
 router.get('/:code', async (req, res, next) => {
   try {
-    const bundle = cardByCode(req.params.code);
+    const bundle = await cardByCode(req.params.code);
     if (!bundle) return res.status(404).json({ error: 'Tarjeta no encontrada' });
 
     try {

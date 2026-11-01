@@ -14,45 +14,62 @@ abstract final class SellaColors {
 ThemeData buildSellaTheme() {
   final base = ThemeData(useMaterial3: true, brightness: Brightness.light);
 
-  final scheme = ColorScheme.fromSeed(
-    seedColor: SellaColors.teal,
-    brightness: Brightness.light,
-  ).copyWith(
-    primary: SellaColors.teal,
-    secondary: SellaColors.amber,
-    surface: SellaColors.white,
-    onSurface: SellaColors.ink,
-    error: SellaColors.danger,
-  );
+  final scheme =
+      ColorScheme.fromSeed(
+        seedColor: SellaColors.teal,
+        brightness: Brightness.light,
+      ).copyWith(
+        primary: SellaColors.teal,
+        secondary: SellaColors.amber,
+        surface: SellaColors.white,
+        onSurface: SellaColors.ink,
+        error: SellaColors.danger,
+      );
 
   final text = base.textTheme
       .apply(bodyColor: SellaColors.ink, displayColor: SellaColors.ink)
       .copyWith(
         displaySmall: const TextStyle(
+          color: SellaColors.ink,
           fontSize: 34,
           fontWeight: FontWeight.w800,
           letterSpacing: -1.1,
           height: 1.08,
         ),
         headlineMedium: const TextStyle(
+          color: SellaColors.ink,
           fontSize: 26,
           fontWeight: FontWeight.w800,
           letterSpacing: -.8,
           height: 1.12,
         ),
         headlineSmall: const TextStyle(
+          color: SellaColors.ink,
           fontSize: 20,
           fontWeight: FontWeight.w700,
           letterSpacing: -.4,
         ),
         titleLarge: const TextStyle(
+          color: SellaColors.ink,
           fontSize: 17,
           fontWeight: FontWeight.w700,
           letterSpacing: -.2,
         ),
-        titleMedium: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-        bodyMedium: const TextStyle(fontSize: 14, height: 1.45),
-        bodySmall: const TextStyle(fontSize: 12.5, color: SellaColors.muted, height: 1.4),
+        titleMedium: const TextStyle(
+          color: SellaColors.ink,
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
+        bodyMedium: const TextStyle(
+          color: SellaColors.ink,
+          fontSize: 14,
+          height: 1.45,
+        ),
+        bodySmall: const TextStyle(
+          fontSize: 12.5,
+          color: SellaColors.muted,
+          height: 1.4,
+        ),
         labelSmall: const TextStyle(
           fontSize: 10.5,
           fontWeight: FontWeight.w700,
@@ -137,14 +154,20 @@ ThemeData buildSellaTheme() {
       labelTextStyle: WidgetStateProperty.resolveWith(
         (states) => TextStyle(
           fontSize: 11,
-          fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
-          color: states.contains(WidgetState.selected) ? SellaColors.ink : SellaColors.muted,
+          fontWeight: states.contains(WidgetState.selected)
+              ? FontWeight.w700
+              : FontWeight.w500,
+          color: states.contains(WidgetState.selected)
+              ? SellaColors.ink
+              : SellaColors.muted,
         ),
       ),
       iconTheme: WidgetStateProperty.resolveWith(
         (states) => IconThemeData(
           size: 23,
-          color: states.contains(WidgetState.selected) ? SellaColors.ink : SellaColors.muted,
+          color: states.contains(WidgetState.selected)
+              ? SellaColors.ink
+              : SellaColors.muted,
         ),
       ),
     ),
@@ -168,14 +191,20 @@ ThemeData buildSellaTheme() {
 extension ColorX on Color {
   Color darken([double amount = .18]) {
     final hsl = HSLColor.fromColor(this);
-    return hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0)).toColor();
+    return hsl
+        .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
+        .toColor();
   }
 
   Color lighten([double amount = .1]) {
     final hsl = HSLColor.fromColor(this);
-    return hsl.withLightness((hsl.lightness + amount).clamp(0.0, 1.0)).toColor();
+    return hsl
+        .withLightness((hsl.lightness + amount).clamp(0.0, 1.0))
+        .toColor();
   }
 
   Color get onColor =>
-      ThemeData.estimateBrightnessForColor(this) == Brightness.dark ? Colors.white : SellaColors.ink;
+      ThemeData.estimateBrightnessForColor(this) == Brightness.dark
+      ? Colors.white
+      : SellaColors.ink;
 }

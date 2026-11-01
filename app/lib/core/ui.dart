@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../core/api.dart';
@@ -17,26 +19,73 @@ class SellaMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final isInk = color == SellaColors.ink;
+    return SizedBox(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(size * .3),
-      ),
-      child: Center(
-        child: Text(
-          'S',
-          style: TextStyle(
-            color: color == SellaColors.ink ? SellaColors.amber : Colors.white,
-            fontSize: size * .52,
-            fontWeight: FontWeight.w900,
-            height: 1,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(size * .3),
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(size * .14),
+          child: CustomPaint(
+            painter: StampPainter(
+              disc: isInk ? SellaColors.amber : Colors.white,
+              ink: color,
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+/// Sello postal: disco con dentado y una S en el centro. Misma forma que el ícono de la app.
+class StampPainter extends CustomPainter {
+  const StampPainter({required this.disc, required this.ink});
+
+  final Color disc;
+  final Color ink;
+
+  static const _teeth = 16;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.shortestSide * .34;
+    final tooth = size.shortestSide * .034;
+
+    canvas.drawCircle(center, radius, Paint()..color = disc);
+
+    final cut = Paint()..color = ink;
+    for (var i = 0; i < _teeth; i++) {
+      final angle = 2 * math.pi * i / _teeth;
+      final point = center + Offset(math.cos(angle), math.sin(angle)) * radius;
+      canvas.drawCircle(point, tooth, cut);
+    }
+
+    final painter = TextPainter(
+      text: TextSpan(
+        text: 'S',
+        style: TextStyle(
+          color: SellaColors.ink,
+          fontSize: size.shortestSide * .46,
+          fontWeight: FontWeight.w900,
+          height: 1,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    painter.paint(
+      canvas,
+      center - Offset(painter.width / 2, painter.height / 2),
+    );
+  }
+
+  @override
+  bool shouldRepaint(StampPainter old) => old.disc != disc || old.ink != ink;
 }
 
 class BrandAvatar extends StatelessWidget {
@@ -102,17 +151,26 @@ class PrimaryButton extends StatelessWidget {
       onPressed: loading ? null : onPressed,
       style: color == null
           ? null
-          : FilledButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white),
+          : FilledButton.styleFrom(
+              backgroundColor: color,
+              foregroundColor: Colors.white,
+            ),
       child: loading
           ? const SizedBox(
               width: 18,
               height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
             )
           : Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 8)],
+                if (icon != null) ...[
+                  Icon(icon, size: 18),
+                  const SizedBox(width: 8),
+                ],
                 Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
               ],
             ),
@@ -149,7 +207,12 @@ class SurfaceCard extends StatelessWidget {
 }
 
 class SectionTitle extends StatelessWidget {
-  const SectionTitle({super.key, required this.title, this.action, this.onAction});
+  const SectionTitle({
+    super.key,
+    required this.title,
+    this.action,
+    this.onAction,
+  });
 
   final String title;
   final String? action;
@@ -161,7 +224,9 @@ class SectionTitle extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 10, top: 6),
       child: Row(
         children: [
-          Expanded(child: Text(title, style: Theme.of(context).textTheme.titleLarge)),
+          Expanded(
+            child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+          ),
           if (action != null)
             TextButton(onPressed: onAction, child: Text(action!)),
         ],
@@ -191,7 +256,9 @@ class StatTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: highlight ? SellaColors.ink : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: highlight ? SellaColors.ink : SellaColors.line),
+        border: Border.all(
+          color: highlight ? SellaColors.ink : SellaColors.line,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -228,7 +295,11 @@ class StatTile extends StatelessWidget {
 }
 
 class StatusPill extends StatelessWidget {
-  const StatusPill({super.key, required this.text, this.color = SellaColors.teal});
+  const StatusPill({
+    super.key,
+    required this.text,
+    this.color = SellaColors.teal,
+  });
 
   final String text;
   final Color color;

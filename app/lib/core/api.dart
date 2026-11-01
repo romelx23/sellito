@@ -22,6 +22,10 @@ class Api {
   static String get baseUrl {
     if (_sameOrigin) return '';
     if (_override.isNotEmpty) return _override.replaceAll(RegExp(r'/$'), '');
+    // Un build de release sin servidor propio no debe apuntar a localhost.
+    if (kReleaseMode && !kIsWeb) {
+      throw StateError('Falta --dart-define=API_URL=https://tu-servidor en el build de release.');
+    }
     if (kIsWeb) return 'http://localhost:3000';
     if (defaultTargetPlatform == TargetPlatform.android) return 'http://10.0.2.2:3000';
     return 'http://localhost:3000';

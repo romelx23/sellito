@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- La app llama a la API por HTTPS en produccion y por HTTP en desarrollo. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Escaneo de QR de sellos. El plugin mobile_scanner también declara la cámara, esto lo deja explícito. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
 
     <application
         android:label="Sella"

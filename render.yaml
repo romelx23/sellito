@@ -16,6 +16,13 @@ services:
         sync: false
       - key: AUTO_SEED
         value: "true"
+      # Base en Turso: pegá la URL y el token (no se guardan en el repo).
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
+      - key: SELLA_CONTACT_EMAIL
+        sync: false
 
     # Persistencia real: los discos de Render requieren plan pago (Starter).
     # Si activás uno, descomentá esto y descomentá DB_PATH.

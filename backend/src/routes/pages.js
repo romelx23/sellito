@@ -17,16 +17,20 @@ function notFound(res, message) {
   );
 }
 
-router.get('/j/:slug', (req, res) => {
-  const business = businessBySlug(req.params.slug);
-  const program = activeProgramBySlug(req.params.slug);
-  if (!business || !program) return notFound(res, 'Este programa no existe');
+router.get('/j/:slug', async (req, res, next) => {
+  try {
+    const business = await businessBySlug(req.params.slug);
+    const program = await activeProgramBySlug(req.params.slug);
+    if (!business || !program) return notFound(res, 'Este programa no existe');
 
-  res.type('html').send(html.renderJoinPage({ business, program }));
+    res.type('html').send(html.renderJoinPage({ business, program }));
+  } catch (error) {
+    next(error);
+  }
 });
 
 router.get('/c/:code', async (req, res) => {
-  const bundle = cardByCode(req.params.code);
+  const bundle = await cardByCode(req.params.code);
   if (!bundle) return notFound(res, 'Esa tarjeta no existe');
 
   const token = qr.sign(bundle.card.id, bundle.card.secret, 60);
@@ -46,7 +50,7 @@ router.get('/c/:code', async (req, res) => {
 });
 
 router.get('/wallet/mock/:code', async (req, res) => {
-  const bundle = cardByCode(req.params.code);
+  const bundle = await cardByCode(req.params.code);
   if (!bundle) return notFound(res, 'Esa tarjeta no existe');
 
   const token = qr.sign(bundle.card.id, bundle.card.secret, 60);

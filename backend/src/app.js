@@ -5,9 +5,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 
-const { migrate, UPLOAD_DIR } = require('./db');
-
-migrate();
+const { UPLOAD_DIR } = require('./db');
 
 const { router: authRouter } = require('./routes/auth');
 const { router: businessRouter } = require('./routes/business');
@@ -17,6 +15,7 @@ const { router: publicRouter } = require('./routes/public');
 const { router: scanRouter } = require('./routes/scan');
 const { router: walletRouter } = require('./routes/wallet');
 const { router: pagesRouter } = require('./routes/pages');
+const { router: legalRouter } = require('./routes/legal');
 const html = require('./services/html');
 
 const app = express();
@@ -41,6 +40,7 @@ app.use(
   express.static(UPLOAD_DIR, { maxAge: '7d' }),
 );
 app.use(pagesRouter);
+app.use(legalRouter);
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
 

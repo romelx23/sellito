@@ -1,5 +1,5 @@
 const express = require('express');
-const { db, now, cleanupQrUses } = require('../db');
+const { get, now, cleanupQrUses } = require('../db');
 const { requireAuth } = require('../auth');
 const { cardById } = require('../services/repo');
 const { addStamp } = require('../services/stamps');
@@ -8,7 +8,7 @@ const qr = require('../services/qr');
 
 const router = express.Router();
 
-router.post('/', requireAuth, (req, res, next) => {
+router.post('/', requireAuth, async (req, res, next) => {
   try {
     const { token, idempotencyKey } = req.body || {};
     if (!token) return res.status(400).json({ error: 'No se recibió ningún QR' });
@@ -20,7 +20,7 @@ router.post('/', requireAuth, (req, res, next) => {
       return res.status(400).json({ error: error.message });
     }
 
-    const bundle = cardById(parsed.cardId);
+    const bundle = await cardById(parsed.cardId);
     if (!bundle) return res.status(404).json({ error: 'La tarjeta no existe' });
 
     if (bundle.program.business_id !== req.user.businessId) {
@@ -35,21 +35,25 @@ router.post('/', requireAuth, (req, res, next) => {
 
     const tokenHash = qr.hashToken(token);
 
+    if (await get('SELECT 1 FROM qr_uses WHERE token_hash = ?', [tokenHash])) {
+      return res.status(409).json({ error: 'Ese QR ya se usó. Pedile que lo actualice.' });
+    }
+
     let result;
     try {
-      result = db.transaction(() => {
-        db.prepare('INSERT INTO qr_uses (token_hash, card_id, used_at) VALUES (?, ?, ?)').run(
-          tokenHash,
-          bundle.card.id,
-          now(),
-        );
-        return addStamp({
-          cardId: bundle.card.id,
-          staffId: req.user.sub,
-          source: 'scan',
-          idempotencyKey: idempotencyKey || `qr-${tokenHash}`,
-        });
-      })();
+      // El registro del QR va en la misma transacción que el sello: si falla uno, fallan los dos.
+      result = await addStamp({
+        cardId: bundle.card.id,
+        staffId: req.user.sub,
+        source: 'scan',
+        idempotencyKey: idempotencyKey || `qr-${tokenHash}`,
+        extra: [
+          [
+            'INSERT INTO qr_uses (token_hash, card_id, used_at) VALUES (?, ?, ?)',
+            [tokenHash, bundle.card.id, now()],
+          ],
+        ],
+      });
     } catch (error) {
       if (String(error.message).includes('UNIQUE constraint failed: qr_uses.token_hash')) {
         return res.status(409).json({ error: 'Ese QR ya se usó. Pedile que lo actualice.' });
@@ -57,9 +61,9 @@ router.post('/', requireAuth, (req, res, next) => {
       throw error;
     }
 
-    cleanupQrUses();
+    await cleanupQrUses();
 
-    const fresh = cardById(bundle.card.id);
+    const fresh = await cardById(bundle.card.id);
     res.json({
       ...result,
       card: merchantCard(fresh),
